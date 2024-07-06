@@ -3,20 +3,21 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
-from mnist_dataset import MnistDataSet
-from mnist_model import *
+from transformers import get_linear_schedule_with_warmup
+from dataset import MnistDataSet
+from model import *
 
 
 device = torch.device('cuda:3') if torch.cuda.is_available() else torch.device('cpu')
 
 batch_size = 128
-dataset_full = MnistDataSet("./train.csv")
-train_dataset, eval_dataset = random_split(dataset_full, [1.0, 0], generator=torch.Generator().manual_seed(42))
+dataset_full = MnistDataSet("./digit-recognizer/train.csv")
+train_dataset, eval_dataset = random_split(dataset_full, [0.8, 0.2], generator=torch.Generator().manual_seed(42))
 print(len(train_dataset), len(eval_dataset))
 
-train_dataloader = DataLoader(train_dataset, batch_size=batch_size, num_workers=32, pin_memory=True, prefetch_factor=10, persistent_workers=True, shuffle=False, drop_last=False)
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size, num_workers=1, pin_memory=True, prefetch_factor=10, persistent_workers=True, shuffle=False, drop_last=False)
 
-eval_dataloader = DataLoader(eval_dataset, batch_size=batch_size, num_workers=32, pin_memory=True, prefetch_factor=10, persistent_workers=True, shuffle=False, drop_last=False)
+eval_dataloader = DataLoader(eval_dataset, batch_size=batch_size, num_workers=1, pin_memory=True, prefetch_factor=10, persistent_workers=True, shuffle=False, drop_last=False)
 
 # net = MLP()  # 96.76%, 53.5818w
 net = CNN()  # 98.38%, 42.1642w
@@ -36,10 +37,12 @@ print(f"总参数量: {sum([p.nelement() for p in net.parameters()]) / 1e4} w")
 net.to(device)
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(net.parameters(), lr=1e-3)
+optimizer = optim.Adam(net.parameters(), lr=1e-5)
+# linear_scheduler = get_linear_schedule_with_warmup(
+    # optimizer, num_warmup_steps=50, num_training_steps=2000)
 
 # 训练网络
-num_epochs = 6
+num_epochs = 10
 print_interval = 100
 net.train()
 for epoch in range(num_epochs):
@@ -52,12 +55,14 @@ for epoch in range(num_epochs):
         # outputs, aux_loss = net(inputs.view(inputs.shape[0], -1))  # MoE
         # outputs = net(inputs.squeeze(1))  # RNN
         outputs = net(batch["feature"])
-        
+    
         loss = criterion(outputs, batch["label"])
         # total_loss = loss + aux_loss  # MOE
         total_loss = loss
         total_loss.backward()
         optimizer.step()
+        
+        # linear_scheduler.step()
 
         running_loss += loss.item()
         if (i+1) % print_interval == 0:  # 每 100 个 mini-batch 打印一次
@@ -85,7 +90,7 @@ for epoch in range(num_epochs):
 print('Finished Training')
 
 
-df = pd.read_csv("./test.csv", skiprows=0, sep=',', encoding='utf_8_sig', header=0, index_col=None)
+df = pd.read_csv("./digit-recognizer/test.csv", skiprows=0, sep=',', encoding='utf_8_sig', header=0, index_col=None)
 data = df.values.reshape(-1, 1, 28, 28).astype('float32')
 data_tensor = torch.tensor(data)
 
@@ -106,4 +111,4 @@ result_df = pd.DataFrame({
 })
 result_df.to_csv("./submission.csv", index=False)
 
-print("./submission.csv")
+print("./digit-recognizer/submission.csv")
