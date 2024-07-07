@@ -10,8 +10,9 @@ class MnistDataSet(Dataset):
         for index, row in df.iterrows():
             self.images.append(row.iloc[1:].values.reshape(1, 28, 28))
             self.labels.append(row.iloc[0])
-        print(self.images[0])
-        print(self.labels[0])
+        
+        print("image0: ", self.images[0])
+        print("label0: ", self.labels[0])
         
     def __len__(self):
         return len(self.labels)
