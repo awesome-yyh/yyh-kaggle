@@ -1,6 +1,6 @@
 import torch
 from torch.utils.data import Dataset
-from transformers import BertTokenizer
+from transformers import BertTokenizer, RobertaTokenizer, DebertaTokenizer, AutoTokenizer
 import pandas as pd
 
 
@@ -13,21 +13,28 @@ class BertDataSet(Dataset):
         
         print("texts0: ", self.texts[0])
         print("label0: ", self.labels[0])
-        self.tokenizer = BertTokenizer.from_pretrained(base_model)
-        self.max_length = 160
+        self.tokenizer = AutoTokenizer.from_pretrained(base_model)
+        # self.tokenizer.padding_side = 'left'
+        if not self.tokenizer.pad_token:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.max_length = 160+20
+        print(f"eos_token: {self.tokenizer.eos_token}, {self.tokenizer.eos_token_id}, pad_token: {self.tokenizer.pad_token}, {self.tokenizer.pad_token_id}")
 
     def __len__(self):
         return len(self.labels)
     
     def __getitem__(self, index):
-        text_encode_dict = self.tokenizer(self.texts[index], add_special_tokens=True, max_length=self.max_length, padding='max_length', truncation=True, return_tensors="pt")
+        new_text = f"Please determine if the content described in this tweet involves a real disaster: {self.texts[index]}. Answer:"
+        # new_text = self.texts[index]
+        text_encode_dict = self.tokenizer(new_text, add_special_tokens=True, max_length=self.max_length, padding='max_length', truncation=True, return_tensors="pt")
         
+        # print(text_encode_dict)
         label_tensor = torch.tensor(self.labels[index], dtype=torch.int64)
         
         feature = dict()
         feature['input_ids'] = text_encode_dict['input_ids'][0]
         feature['attention_mask'] = text_encode_dict['attention_mask'][0]
-        feature['token_type_ids'] = text_encode_dict['token_type_ids'][0]
+        # feature['token_type_ids'] = text_encode_dict['token_type_ids'][0]
         feature["labels"] = label_tensor
         
         return feature
